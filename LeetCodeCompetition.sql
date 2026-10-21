@@ -1,4 +1,5 @@
 -- Drop in dependency order
+DROP TABLE IF EXISTS picfile;
 DROP TABLE IF EXISTS submission;
 DROP TABLE IF EXISTS connection;
 DROP TABLE IF EXISTS userpass;
@@ -77,7 +78,7 @@ CREATE TABLE individual_party_stats (
   party_current_streak INT DEFAULT 0,
   party_max_streak     INT DEFAULT 0,
 
-  rank  INT NULL,
+  `rank`  INT NULL,
 
   PRIMARY KEY (pid, cpid),
 

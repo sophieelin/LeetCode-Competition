@@ -19,7 +19,8 @@ from party_utils import compute_party_dates, nth
 import datetime
 
 # we need a secret_key to use flash() and sessions
-app.secret_key = secrets.token_hex()
+# (set SECRET_KEY in production so sessions survive across server instances)
+app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex()
 
 # configure DBI
 print(dbi.conf('leetcode_db'))
@@ -27,9 +28,7 @@ print(dbi.conf('leetcode_db'))
 # This gets us better error messages for certain common request errors
 app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 
-# set uploads folder path for profile pics
-UPLOAD_FOLDER = '/students/leetcode/uploads/'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER # team uploads directory
+# profile pics are stored in the database (no writable filesystem on Vercel)
 app.config['MAX_CONTENT_LENGTH'] = 1*1024*1024 # 1 MB max file upload
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
@@ -285,16 +284,10 @@ def upload_profile_pic(pid):
             timestamp = time.time()
             filename = secure_filename('{}_{}.{}'.format(pid,timestamp,ext))
 
-            # get filename path
-            pathname = os.path.join(app.config['UPLOAD_FOLDER'],filename)
-
-            # save image to filesystem by formed path
-            file.save(pathname)
-            os.chmod(pathname, 0o444) # readable by owner, group and others
-
-            # upload filename to database
+            # save image bytes and filename to database
             conn = dbi.connect()
-            db_queries.upload_profile_pic(conn, pid, filename)
+            db_queries.upload_profile_pic(conn, pid, filename,
+                                          file.mimetype, file.read())
             conn.close()
 
             return redirect(url_for('profile', pid = pid)) # return to profile 
@@ -323,7 +316,15 @@ def uploaded_file(filename):
     """
     Handle request for profile picture given the filename.
     """
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    conn = dbi.connect()
+    pic = db_queries.get_profile_pic_data(conn, filename)
+    conn.close()
+    if not pic or pic['data'] is None:
+        return redirect(url_for('static', filename='default_pfp.jpg'))
+    response = make_response(pic['data'])
+    response.headers['Content-Type'] = pic['mimetype'] or 'application/octet-stream'
+    response.headers['Cache-Control'] = 'public, max-age=86400'
+    return response
 
 def allowed_file(filename):
     """

@@ -127,15 +127,17 @@ def edit_profile(conn, pid, name, username, lc_username, personal_goal):
     conn.commit()
     curs.close()
 
-def upload_profile_pic(conn, pid, filename):
+def upload_profile_pic(conn, pid, filename, mimetype, data):
     """
-    Inserts or updates filename of the uploaded profile picture of the user
+    Inserts or updates the uploaded profile picture (filename and image bytes)
+    of the user
     """
     curs = dbi.dict_cursor(conn)
-    curs.execute('''insert into picfile(pid, filename)
-                    values (%s, %s)
-                    on duplicate key update 
-                    filename=%s''', [pid, filename, filename])
+    curs.execute('''insert into picfile(pid, filename, mimetype, data)
+                    values (%s, %s, %s, %s)
+                    on duplicate key update
+                    filename=%s, mimetype=%s, data=%s''',
+                 [pid, filename, mimetype, data, filename, mimetype, data])
     conn.commit()
     curs.close()
 
@@ -447,6 +449,15 @@ def get_profile_pic(conn, pid):
                 select filename
                 from picfile
                 where pid=%s""", [pid])
+    return curs.fetchone()
+
+def get_profile_pic_data(conn, filename):
+    """Returns the mimetype and image bytes of an uploaded profile picture"""
+    curs = dbi.dict_cursor(conn)
+    curs.execute("""
+                select mimetype, data
+                from picfile
+                where filename=%s""", [filename])
     return curs.fetchone()
 
 def get_upcoming_mutual_parties(conn, pid, limit=20):
